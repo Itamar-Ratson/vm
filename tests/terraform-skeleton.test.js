@@ -116,6 +116,10 @@ assert.match(dockerScript, /vm-tool-versions\.txt/);
 for (const tool of expectedTools) {
   const scriptPath = path.join(root, "scripts", `install-${tool}.sh`);
   assert.ok(fs.existsSync(scriptPath), `scripts/install-${tool}.sh should exist`);
+  assert.ok(
+    !fs.existsSync(path.join(root, "terraform", "scripts", `install-${tool}.sh`)),
+    `terraform/scripts/install-${tool}.sh should not exist`,
+  );
 
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.match(script, /set -euo pipefail/, `install-${tool}.sh should fail fast`);
