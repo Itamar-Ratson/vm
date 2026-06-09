@@ -18,6 +18,8 @@
 !.gitignore
 !Dockerfile
 !.dockerignore
+!package.json
+!package-lock.json
 
 # Terraform state and cache (override folder allowlist)
 terraform/.terraform/**
