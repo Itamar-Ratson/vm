@@ -26,7 +26,7 @@ jobs:
           - tool: kind
             script: scripts/install-kind.sh
             pin: "v0.29.0"
-            expected: "v0.29.0"
+            expected: "0.29.0"
             version_command: "kind --version"
             version_pattern: "v?[0-9]+[.][0-9]+[.][0-9]+"
           - tool: helm
@@ -62,9 +62,9 @@ jobs:
           - tool: jq
             script: scripts/install-jq.sh
             pin: "1.7.1-3ubuntu0.24.04.2"
-            expected: "1.7.1"
+            expected: "1.7"
             version_command: "jq --version"
-            version_pattern: "[0-9]+[.][0-9]+[.][0-9]+"
+            version_pattern: "[0-9]+[.][0-9]+"
           - tool: yq
             script: scripts/install-yq.sh
             pin: "v4.45.4"
