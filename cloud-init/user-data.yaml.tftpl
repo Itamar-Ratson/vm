@@ -3,6 +3,11 @@ hostname: ${username}-sandbox
 manage_etc_hosts: true
 package_update: true
 
+packages:
+  - ubuntu-desktop-minimal
+  - spice-vdagent
+  - firefox
+
 users:
   - default
   - name: ${username}
@@ -24,6 +29,13 @@ write_files:
     permissions: "0440"
     content: |
       ${username} ALL=(ALL) NOPASSWD:ALL
+  - path: /etc/gdm3/custom.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [daemon]
+      AutomaticLoginEnable=true
+      AutomaticLogin=${username}
 %{ for tool in tools ~}
   - path: /usr/local/sbin/install-${tool}.sh
     owner: root:root

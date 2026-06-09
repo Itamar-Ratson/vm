@@ -44,6 +44,9 @@ assert.match(main, /resource "libvirt_volume" "root"/);
 assert.match(main, /base_volume_id\s+= libvirt_volume\.ubuntu_base\.id/);
 assert.match(main, /network_name\s+= "default"/);
 assert.match(main, /wait_for_lease\s+= true/);
+assert.match(main, /graphics\s+\{[\s\S]*type\s+= "spice"/);
+assert.match(main, /video\s+\{[\s\S]*type\s+= "qxl"/);
+assert.match(main, /channel\s+\{[\s\S]*type\s+= "spicevmc"[\s\S]*target_type\s+= "virtio"[\s\S]*target_name\s+= "com\.redhat\.spice\.0"/);
 assert.match(main, /cloud-init status --wait/);
 
 const cloudinit = read("cloudinit.tf");
@@ -57,11 +60,17 @@ const outputs = read("outputs.tf");
 assert.match(outputs, /output "vm_ip"/);
 assert.match(outputs, /output "ssh_command"/);
 assert.match(outputs, /ssh \$\{var\.username\}@/);
+assert.match(outputs, /output "virt_viewer_command"/);
+assert.match(outputs, /virt-viewer --connect qemu:\/\/\/system \$\{var\.vm_name\}/);
 
 const userData = read("cloud-init/user-data.yaml.tftpl");
 assert.match(userData, /name: \$\{username\}/);
 assert.match(userData, /sudo: ALL=\(ALL\) NOPASSWD:ALL/);
 assert.match(userData, /ssh_authorized_keys:/);
+assert.match(userData, /packages:\s+[\s\S]*ubuntu-desktop-minimal[\s\S]*spice-vdagent[\s\S]*firefox/);
+assert.match(userData, /\/etc\/gdm3\/custom\.conf/);
+assert.match(userData, /AutomaticLoginEnable=true/);
+assert.match(userData, /AutomaticLogin=\$\{username\}/);
 assert.match(userData, /\/usr\/local\/sbin\/install-\$\{tool\}\.sh/);
 assert.match(userData, /TOOL_VERSION=\$\{lookup\(tool_versions, tool, ""\)\}/);
 
@@ -87,6 +96,11 @@ for (const tool of expectedTools) {
 }
 
 const readme = read("README.md");
+assert.match(readme, /virt-viewer/);
+assert.match(readme, /GNOME/);
+assert.match(readme, /autologin/);
+assert.match(readme, /ubuntu-desktop-minimal/);
+assert.doesNotMatch(readme, /headless Ubuntu Server VM/);
 assert.match(readme, /scripts\/install-<name>\.sh/);
 assert.match(readme, /tools/);
 assert.match(readme, /docker run/);

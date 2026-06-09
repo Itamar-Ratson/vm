@@ -31,6 +31,22 @@ resource "libvirt_domain" "vm" {
     wait_for_lease = true
   }
 
+  graphics {
+    type        = "spice"
+    listen_type = "address"
+    autoport    = true
+  }
+
+  video {
+    type = "qxl"
+  }
+
+  channel {
+    type        = "spicevmc"
+    target_type = "virtio"
+    target_name = "com.redhat.spice.0"
+  }
+
   console {
     type        = "pty"
     target_type = "serial"

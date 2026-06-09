@@ -2,13 +2,13 @@
 
 Terraform provisions an ephemeral Ubuntu 24.04 VM on local libvirt. The VM is meant to be created, used for an experiment, and destroyed cleanly.
 
-This first slice creates a headless Ubuntu Server VM, injects your SSH key, creates the `dev` user, grants passwordless sudo, and waits for cloud-init before `terraform apply` returns.
-It also installs the selected tool catalog during cloud-init. The default catalog contains Docker and the Docker Compose plugin, KinD, Helm, kubectl, Terraform, Git, GitHub CLI, jq, and yq.
+The VM boots into a GNOME desktop with GDM autologin for the `dev` user, injects your SSH key, grants passwordless sudo, and waits for cloud-init before `terraform apply` returns.
+It installs `ubuntu-desktop-minimal`, Firefox, SPICE guest support, and the selected tool catalog during cloud-init. The default catalog contains Docker and the Docker Compose plugin, KinD, Helm, kubectl, Terraform, Git, GitHub CLI, jq, and yq.
 
 ## Prerequisites
 
 - Linux host with KVM support.
-- `libvirt`, `qemu-kvm`, and `virt-manager` installed.
+- `libvirt`, `qemu-kvm`, `virt-manager`, and `virt-viewer` installed.
 - Your host user is in the `libvirt` and `kvm` groups. Log out and back in after changing group membership.
 - An SSH public key at `~/.ssh/id_ed25519.pub` or `~/.ssh/id_rsa.pub`, or set `ssh_pubkey_path` in `terraform.tfvars`.
 
@@ -29,7 +29,17 @@ terraform init
 terraform apply
 ```
 
-When the apply finishes, cloud-init has reported `done` inside the VM. Print the SSH command:
+When the apply finishes, cloud-init has reported `done` inside the VM. The desktop package install makes the first apply slower than a server-only boot; expect roughly 6-8 minutes on the first run, depending on host and network speed.
+
+Print the GUI command:
+
+```sh
+terraform output virt_viewer_command
+```
+
+Run the printed command to open the SPICE display. GDM logs in as `dev` automatically, Firefox is available from the GNOME desktop, and `spice-vdagent` enables SPICE clipboard sharing.
+
+Print the SSH command:
 
 ```sh
 terraform output ssh_command
@@ -49,6 +59,7 @@ terraform destroy
 - RAM: `8192` MiB
 - Disk: `20` GiB thin-provisioned qcow2
 - Ubuntu image: `https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img`
+- Desktop: `ubuntu-desktop-minimal` with Firefox, GDM autologin, SPICE, and qxl video
 - Tools: `["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"]`
 - Tool version pins: `{}`
 
@@ -60,8 +71,8 @@ On a 16 GB host, the 8 GB VM default leaves limited RAM for the host. Close heav
 - `providers.tf`: libvirt provider connection.
 - `variables.tf`: user-configurable inputs and SSH key detection.
 - `cloudinit.tf`: cloud-init rendering and ISO disk.
-- `main.tf`: libvirt volumes, domain, and cloud-init readiness gate.
-- `outputs.tf`: VM IP and SSH command.
+- `main.tf`: libvirt volumes, SPICE/qxl domain, and cloud-init readiness gate.
+- `outputs.tf`: VM IP, SSH command, and virt-viewer command.
 - `cloud-init/user-data.yaml.tftpl`: cloud-init user-data template.
 - `scripts/install-<name>.sh`: install-and-configure scripts for catalog tools.
 
