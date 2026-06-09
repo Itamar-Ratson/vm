@@ -1,0 +1,146 @@
+name: Install scripts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  install:
+    name: ${{ matrix.tool.tool }} (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ["latest", "pinned"]
+        tool:
+          - tool: docker
+            script: scripts/install-docker.sh
+            pin: "5:29.5.3-1~ubuntu.24.04~noble"
+            expected: "29.5.3"
+            version_command: "docker --version"
+            version_pattern: "[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: kind
+            script: scripts/install-kind.sh
+            pin: "v0.29.0"
+            expected: "0.29.0"
+            version_command: "kind --version"
+            version_pattern: "v?[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: helm
+            script: scripts/install-helm.sh
+            pin: "v3.17.3"
+            expected: "v3.17.3"
+            version_command: "helm version --short"
+            version_pattern: "v?[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: kubectl
+            script: scripts/install-kubectl.sh
+            pin: "v1.33.9"
+            expected: "v1.33.9"
+            version_command: "kubectl version --client=true --output=yaml"
+            version_pattern: "v?[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: terraform
+            script: scripts/install-terraform.sh
+            pin: "1.9.8"
+            expected: "1.9.8"
+            version_command: "terraform version"
+            version_pattern: "[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: git
+            script: scripts/install-git.sh
+            pin: "1:2.43.0-1ubuntu7.3"
+            expected: "2.43.0"
+            version_command: "git --version"
+            version_pattern: "[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: gh
+            script: scripts/install-gh.sh
+            pin: "2.93.0"
+            expected: "2.93.0"
+            version_command: "gh --version"
+            version_pattern: "[0-9]+[.][0-9]+[.][0-9]+"
+          - tool: jq
+            script: scripts/install-jq.sh
+            pin: "1.7.1-3ubuntu0.24.04.2"
+            expected: "1.7"
+            version_command: "jq --version"
+            version_pattern: "[0-9]+[.][0-9]+"
+          - tool: yq
+            script: scripts/install-yq.sh
+            pin: "v4.45.4"
+            expected: "v4.45.4"
+            version_command: "yq --version"
+            version_pattern: "v?[0-9]+[.][0-9]+[.][0-9]+"
+
+    steps:
+      - name: Install container prerequisites
+        run: |
+          apt-get update
+          apt-get install -y curl ca-certificates sudo
+          apt-get install -y git
+
+      - uses: actions/checkout@v4
+
+      - name: Run install script
+        env:
+          MATRIX_VARIANT: ${{ matrix.variant }}
+          PINNED_TOOL_VERSION: ${{ matrix.tool.pin }}
+        run: |
+          set -euo pipefail
+
+          if [ "$MATRIX_VARIANT" = "pinned" ]; then
+            export TOOL_VERSION="$PINNED_TOOL_VERSION"
+          else
+            export TOOL_VERSION=""
+          fi
+
+          "${{ matrix.tool.script }}"
+
+      - name: Assert external behavior
+        env:
+          MATRIX_VARIANT: ${{ matrix.variant }}
+          TOOL_NAME: ${{ matrix.tool.tool }}
+          VERSION_COMMAND: ${{ matrix.tool.version_command }}
+          VERSION_PATTERN: ${{ matrix.tool.version_pattern }}
+          EXPECTED_VERSION: ${{ matrix.tool.expected }}
+        run: |
+          set -euo pipefail
+
+          version_output="$(bash -c "$VERSION_COMMAND")"
+          printf '%s\n' "$version_output"
+
+          if [ -z "$version_output" ]; then
+            printf '%s --version produced no output\n' "$TOOL_NAME" >&2
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$version_output" | grep -Eq "$VERSION_PATTERN"; then
+            printf '%s version output did not match %s\n' "$TOOL_NAME" "$VERSION_PATTERN" >&2
+            exit 1
+          fi
+
+          if [ "$TOOL_NAME" = "docker" ]; then
+            docker compose version
+          fi
+
+          version_line="$(grep -E "^${TOOL_NAME}: " /etc/vm-tool-versions.txt | tail -n 1)"
+          printf '%s\n' "$version_line"
+
+          if [ -z "$version_line" ]; then
+            printf '/etc/vm-tool-versions.txt did not contain a %s line\n' "$TOOL_NAME" >&2
+            exit 1
+          fi
+
+          if [ "$MATRIX_VARIANT" = "pinned" ]; then
+            actual_version="$(printf '%s\n' "$version_output" | grep -Eo "$VERSION_PATTERN" | head -n 1)"
+            if [ "$actual_version" != "$EXPECTED_VERSION" ]; then
+              printf 'expected %s %s, got %s\n' "$TOOL_NAME" "$EXPECTED_VERSION" "$actual_version" >&2
+              exit 1
+            fi
+
+            if ! printf '%s\n' "$version_line" | grep -Fq "$EXPECTED_VERSION"; then
+              printf '%s version file line did not reflect pinned version %s\n' "$TOOL_NAME" "$EXPECTED_VERSION" >&2
+              exit 1
+            fi
+          fi
