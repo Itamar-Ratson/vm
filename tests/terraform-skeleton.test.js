@@ -11,10 +11,17 @@ function read(file) {
 [
   ".github/workflows/install-scripts.yml",
   ".github/workflows/cleanup-image.yml",
+  ".github/workflows/packer.yml",
   "CONTEXT.md",
   "docs/adr/0001-ephemeral-vm.md",
   "docs/adr/0002-cloud-init-over-ansible.md",
+  "docs/adr/0003-prebaked-image.md",
+  "packer/.gitignore",
+  "packer/build.sh",
   "packer/cleanup.sh",
+  "packer/devops-sandbox.pkr.hcl",
+  "packer/seed/meta-data",
+  "packer/seed/user-data.tpl",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -53,6 +60,62 @@ assert.match(cleanupWorkflow, /test ! -e \/etc\/ssh\/ssh_host_ed25519_key/);
 assert.match(cleanupWorkflow, /test ! -d \/home\/builder/);
 assert.match(cleanupWorkflow, /test ! -s \/etc\/machine-id/);
 assert.match(cleanupWorkflow, /\/etc\/vm-build-info\.txt/);
+
+const packerWorkflow = read(".github/workflows/packer.yml");
+assert.match(packerWorkflow, /hashicorp\/setup-packer/);
+assert.match(packerWorkflow, /packer init packer\/devops-sandbox\.pkr\.hcl/);
+assert.match(packerWorkflow, /packer validate[\s\S]*packer\/devops-sandbox\.pkr\.hcl/);
+
+const packerTemplate = read("packer/devops-sandbox.pkr.hcl");
+assert.match(packerTemplate, /source "qemu" "devops_sandbox"/);
+assert.match(packerTemplate, /accelerator\s+= "kvm"/);
+assert.match(packerTemplate, /headless\s+= true/);
+assert.match(packerTemplate, /cpus\s+= 6/);
+assert.match(packerTemplate, /memory\s+= 6144/);
+assert.match(packerTemplate, /disk_size\s+= "12G"/);
+assert.match(packerTemplate, /iso_checksum\s+= "none"/);
+assert.match(packerTemplate, /cd_files\s+= \[[\s\S]*seed\/meta-data[\s\S]*seed\/user-data/);
+assert.match(packerTemplate, /cloud-init status --wait/);
+assert.match(packerTemplate, /ubuntu-desktop-minimal[\s\S]*spice-vdagent[\s\S]*firefox/);
+assert.match(packerTemplate, /AutomaticLogin=dev/);
+assert.match(packerTemplate, /useradd[\s\S]*dev/);
+assert.match(packerTemplate, /\/tmp\/install-scripts/);
+for (const tool of expectedTools) {
+  assert.match(packerTemplate, new RegExp(`"${tool}"`), `packer tools default should include ${tool}`);
+}
+assert.match(packerTemplate, /install-\$\{tool\}\.sh/);
+assert.match(packerTemplate, /SOURCE_CLOUD_IMAGE_URL/);
+assert.match(packerTemplate, /SOURCE_CLOUD_IMAGE_SHA256/);
+assert.match(packerTemplate, /BUILD_TIMESTAMP_RFC3339/);
+assert.match(packerTemplate, /GIT_SHORT_SHA/);
+assert.match(packerTemplate, /qemu-img convert -c -O qcow2/);
+assert.match(packerTemplate, /devops-sandbox-base\.qcow2/);
+
+const packerBuildPath = path.join(root, "packer", "build.sh");
+const packerBuildMode = fs.statSync(packerBuildPath).mode;
+assert.equal(packerBuildMode & 0o111, 0o111, "packer/build.sh should be executable");
+const packerBuild = fs.readFileSync(packerBuildPath, "utf8");
+assert.match(packerBuild, /ssh-keygen -q -t ed25519/);
+assert.match(packerBuild, /trap cleanup EXIT/);
+assert.match(packerBuild, /rm -rf "\$build_dir"/);
+assert.match(packerBuild, /@SSH_PUBKEY@/);
+assert.match(packerBuild, /packer build/);
+assert.match(packerBuild, /ssh_private_key_file=\$build_dir\/builder_id/);
+assert.match(packerBuild, /devops-sandbox-base\.qcow2/);
+
+const packerMetaData = read("packer/seed/meta-data");
+assert.match(packerMetaData, /instance-id: builder/);
+assert.match(packerMetaData, /local-hostname: builder-vm/);
+
+const packerSeedTemplate = read("packer/seed/user-data.tpl");
+assert.match(packerSeedTemplate, /name: builder/);
+assert.match(packerSeedTemplate, /@SSH_PUBKEY@/);
+assert.match(packerSeedTemplate, /sudo: ALL=\(ALL\) NOPASSWD:ALL/);
+
+const packerGitignore = read("packer/.gitignore");
+assert.match(packerGitignore, /^output\/$/m);
+assert.match(packerGitignore, /^\.build\/$/m);
+assert.match(packerGitignore, /^cache\/$/m);
 
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
