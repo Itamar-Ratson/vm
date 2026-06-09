@@ -11,10 +11,16 @@ function read(file) {
 [
   ".github/workflows/install-scripts.yml",
   ".github/workflows/cleanup-image.yml",
-  "CONTEXT.md",
+  ".github/workflows/packer.yml",
   "docs/adr/0001-ephemeral-vm.md",
   "docs/adr/0002-cloud-init-over-ansible.md",
+  "docs/adr/0003-prebaked-image.md",
+  "packer/.gitignore",
+  "packer/build.sh",
   "packer/cleanup.sh",
+  "packer/devops-sandbox.pkr.hcl",
+  "packer/seed/meta-data",
+  "packer/seed/user-data.tpl",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -53,6 +59,57 @@ assert.match(cleanupWorkflow, /test ! -e \/etc\/ssh\/ssh_host_ed25519_key/);
 assert.match(cleanupWorkflow, /test ! -d \/home\/builder/);
 assert.match(cleanupWorkflow, /test ! -s \/etc\/machine-id/);
 assert.match(cleanupWorkflow, /\/etc\/vm-build-info\.txt/);
+
+const packerWorkflow = read(".github/workflows/packer.yml");
+assert.match(packerWorkflow, /packer validate packer\/devops-sandbox\.pkr\.hcl/);
+
+const packerGitignore = read("packer/.gitignore");
+assert.match(packerGitignore, /^output\/$/m);
+assert.match(packerGitignore, /^\.build\/$/m);
+assert.match(packerGitignore, /^cache\/$/m);
+
+const packerBuildPath = path.join(root, "packer", "build.sh");
+assert.equal(fs.statSync(packerBuildPath).mode & 0o111, 0o111, "packer/build.sh should be executable");
+const packerBuild = fs.readFileSync(packerBuildPath, "utf8");
+assert.match(packerBuild, /set -euo pipefail/);
+assert.match(packerBuild, /ssh-keygen -t ed25519/);
+assert.match(packerBuild, /build_dir="packer\/\.build"/);
+assert.match(packerBuild, /key_path="\$build_dir\/builder_id"/);
+assert.match(packerBuild, /rm -rf "\$build_dir"/);
+assert.match(packerBuild, /trap cleanup EXIT/);
+assert.match(packerBuild, /sed[\s\S]*@SSH_PUBKEY@/);
+assert.match(packerBuild, /packer build/);
+assert.match(packerBuild, /ssh_private_key_file=\$\{key_path\}/);
+
+const packerTemplate = read("packer/devops-sandbox.pkr.hcl");
+assert.match(packerTemplate, /source "qemu" "devops_sandbox"/);
+assert.match(packerTemplate, /iso_checksum\s+= "none"/);
+assert.match(packerTemplate, /accelerator\s+= "kvm"/);
+assert.match(packerTemplate, /memory\s+= 6144/);
+assert.match(packerTemplate, /cpus\s+= 6/);
+assert.match(packerTemplate, /disk_size\s+= "12G"/);
+assert.match(packerTemplate, /ssh_username\s+= "builder"/);
+assert.match(packerTemplate, /ssh_private_key_file\s+= var\.ssh_private_key_file/);
+assert.match(packerTemplate, /cloud-init status --wait/);
+assert.match(packerTemplate, /ubuntu-desktop-minimal/);
+assert.match(packerTemplate, /spice-vdagent/);
+assert.match(packerTemplate, /firefox/);
+assert.match(packerTemplate, /AutomaticLogin=dev/);
+assert.match(packerTemplate, /useradd[\s\S]*dev/);
+assert.match(packerTemplate, /source\s+= "scripts\/"/);
+assert.match(packerTemplate, /install-\*\.sh/);
+assert.match(packerTemplate, /TOOL_VERSION/);
+assert.match(packerTemplate, /packer\/cleanup\.sh/);
+assert.match(packerTemplate, /qemu-img convert -c -O qcow2/);
+
+const seedMetaData = read("packer/seed/meta-data");
+assert.match(seedMetaData, /instance-id: builder/);
+assert.match(seedMetaData, /local-hostname: builder-vm/);
+
+const seedUserData = read("packer/seed/user-data.tpl");
+assert.match(seedUserData, /#cloud-config/);
+assert.match(seedUserData, /name: builder/);
+assert.match(seedUserData, /@SSH_PUBKEY@/);
 
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
@@ -155,7 +212,6 @@ assert.match(cleanupScript, /\/etc\/ssh\/ssh_host_/);
 assert.match(cleanupScript, /fstrim -av/);
 
 const readme = read("README.md");
-assert.match(readme, /CONTEXT\.md/);
 assert.match(readme, /docs\/adr\/0001-ephemeral-vm\.md/);
 assert.match(readme, /docs\/adr\/0002-cloud-init-over-ansible\.md/);
 assert.match(readme, /virt-viewer/);
@@ -179,12 +235,6 @@ assert.match(gitignore, /^\*\.tfstate$/m);
 assert.match(gitignore, /^\*\.tfstate\.\*$/m);
 assert.match(gitignore, /^\.terraform\/\*\*$/m);
 
-const context = read("CONTEXT.md");
-assert.match(context, /Ephemeral VM/);
-assert.match(context, /Tool catalog/);
-assert.match(context, /Install script/);
-assert.match(context, /Clean-slate environment/);
-
 const ephemeralAdr = read("docs/adr/0001-ephemeral-vm.md");
 assert.match(ephemeralAdr, /[Ee]phemeral VM/);
 assert.match(ephemeralAdr, /no persistence/i);
@@ -192,3 +242,9 @@ assert.match(ephemeralAdr, /no persistence/i);
 const cloudInitAdr = read("docs/adr/0002-cloud-init-over-ansible.md");
 assert.match(cloudInitAdr, /cloud-init/);
 assert.match(cloudInitAdr, /Ansible/);
+
+const prebakedAdr = read("docs/adr/0003-prebaked-image.md");
+assert.match(prebakedAdr, /Pre-baked image/);
+assert.match(prebakedAdr, /Builder VM/);
+assert.match(prebakedAdr, /Tool catalog/);
+assert.match(prebakedAdr, /known clean state/i);
