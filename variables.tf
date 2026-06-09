@@ -40,6 +40,18 @@ variable "ubuntu_image_url" {
   default     = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 }
 
+variable "tools" {
+  description = "Tool catalog entries installed during cloud-init, in order."
+  type        = list(string)
+  default     = ["docker"]
+}
+
+variable "tool_versions" {
+  description = "Optional per-tool version pins. Missing or empty values install the latest available version."
+  type        = map(string)
+  default     = {}
+}
+
 locals {
   id_ed25519_pubkey_path = pathexpand("~/.ssh/id_ed25519.pub")
   id_rsa_pubkey_path     = pathexpand("~/.ssh/id_rsa.pub")

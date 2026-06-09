@@ -3,6 +3,7 @@
 Terraform provisions an ephemeral Ubuntu 24.04 VM on local libvirt. The VM is meant to be created, used for an experiment, and destroyed cleanly.
 
 This first slice creates a headless Ubuntu Server VM, injects your SSH key, creates the `dev` user, grants passwordless sudo, and waits for cloud-init before `terraform apply` returns.
+It also installs the selected tool catalog during cloud-init. The default catalog contains Docker and the Docker Compose plugin.
 
 ## Prerequisites
 
@@ -48,6 +49,8 @@ terraform destroy
 - RAM: `8192` MiB
 - Disk: `20` GiB thin-provisioned qcow2
 - Ubuntu image: `https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img`
+- Tools: `["docker"]`
+- Tool version pins: `{}`
 
 On a 16 GB host, the 8 GB VM default leaves limited RAM for the host. Close heavy applications before applying. The 20 GB disk is enough for the initial sandbox, but DevOps workloads can use space quickly; increase `vm_disk_gb` to `30` or more if your host has room.
 
@@ -60,3 +63,10 @@ On a 16 GB host, the 8 GB VM default leaves limited RAM for the host. Close heav
 - `main.tf`: libvirt volumes, domain, and cloud-init readiness gate.
 - `outputs.tf`: VM IP and SSH command.
 - `cloud-init/user-data.yaml.tftpl`: cloud-init user-data template.
+- `scripts/install-docker.sh`: Docker install-and-configure script.
+
+## Tool Catalog
+
+Cloud-init writes each selected `scripts/install-<name>.sh` file into the VM and runs it with `TOOL_VERSION` set from the `tool_versions` map. An empty or missing pin installs the latest available version.
+
+To add a tool, add `scripts/install-<name>.sh`, then add `<name>` to the `tools` list in `variables.tf` or `terraform.tfvars`. Each install script should install and configure the tool, then append one `<name>: <resolved version>` line to `/etc/vm-tool-versions.txt`.

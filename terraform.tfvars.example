@@ -5,3 +5,5 @@ vm_disk_gb       = 20
 username         = "dev"
 ssh_pubkey_path  = null
 ubuntu_image_url = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+tools            = ["docker"]
+tool_versions    = {}

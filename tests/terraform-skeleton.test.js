@@ -28,6 +28,8 @@ assert.match(variables, /variable "vm_memory_mib"[\s\S]*default\s+= 8192/);
 assert.match(variables, /variable "vm_disk_gb"[\s\S]*default\s+= 20/);
 assert.match(variables, /variable "username"[\s\S]*default\s+= "dev"/);
 assert.match(variables, /variable "ubuntu_image_url"[\s\S]*noble-server-cloudimg-amd64\.img/);
+assert.match(variables, /variable "tools"[\s\S]*type\s+= list\(string\)[\s\S]*default\s+= \[\s*"docker",?\s*\]/);
+assert.match(variables, /variable "tool_versions"[\s\S]*type\s+= map\(string\)[\s\S]*default\s+= \{\}/);
 assert.match(variables, /~\/\.ssh\/id_ed25519\.pub/);
 assert.match(variables, /~\/\.ssh\/id_rsa\.pub/);
 
@@ -44,6 +46,8 @@ const cloudinit = read("cloudinit.tf");
 assert.match(cloudinit, /resource "terraform_data" "ssh_pubkey_check"/);
 assert.match(cloudinit, /No SSH public key was found/);
 assert.match(cloudinit, /resource "libvirt_cloudinit_disk" "user_data"/);
+assert.match(cloudinit, /install_scripts\s+= local\.install_scripts/);
+assert.match(cloudinit, /tool_versions\s+= var\.tool_versions/);
 
 const outputs = read("outputs.tf");
 assert.match(outputs, /output "vm_ip"/);
@@ -54,6 +58,21 @@ const userData = read("cloud-init/user-data.yaml.tftpl");
 assert.match(userData, /name: \$\{username\}/);
 assert.match(userData, /sudo: ALL=\(ALL\) NOPASSWD:ALL/);
 assert.match(userData, /ssh_authorized_keys:/);
+assert.match(userData, /\/usr\/local\/sbin\/install-\$\{tool\}\.sh/);
+assert.match(userData, /TOOL_VERSION=\$\{lookup\(tool_versions, tool, ""\)\}/);
+
+const dockerScriptPath = path.join(root, "scripts", "install-docker.sh");
+assert.ok(fs.existsSync(dockerScriptPath), "scripts/install-docker.sh should exist");
+const dockerScript = fs.readFileSync(dockerScriptPath, "utf8");
+assert.match(dockerScript, /TOOL_VERSION/);
+assert.match(dockerScript, /download\.docker\.com\/linux\/ubuntu/);
+assert.match(dockerScript, /docker-compose-plugin/);
+assert.match(dockerScript, /usermod -aG docker/);
+assert.match(dockerScript, /vm-tool-versions\.txt/);
+
+const readme = read("README.md");
+assert.match(readme, /scripts\/install-<name>\.sh/);
+assert.match(readme, /tools/);
 
 const gitignore = read(".gitignore");
 assert.match(gitignore, /^terraform\.tfvars$/m);
