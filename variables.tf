@@ -43,7 +43,7 @@ variable "ubuntu_image_url" {
 variable "tools" {
   description = "Tool catalog entries installed during cloud-init, in order."
   type        = list(string)
-  default     = ["docker"]
+  default     = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"]
 }
 
 variable "tool_versions" {

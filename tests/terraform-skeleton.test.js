@@ -22,13 +22,17 @@ function read(file) {
 });
 
 const variables = read("variables.tf");
+const expectedTools = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"];
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
 assert.match(variables, /variable "vm_memory_mib"[\s\S]*default\s+= 8192/);
 assert.match(variables, /variable "vm_disk_gb"[\s\S]*default\s+= 20/);
 assert.match(variables, /variable "username"[\s\S]*default\s+= "dev"/);
 assert.match(variables, /variable "ubuntu_image_url"[\s\S]*noble-server-cloudimg-amd64\.img/);
-assert.match(variables, /variable "tools"[\s\S]*type\s+= list\(string\)[\s\S]*default\s+= \[\s*"docker",?\s*\]/);
+const toolsDefaultMatch = variables.match(/variable "tools"[\s\S]*?default\s+= \[([\s\S]*?)\]/);
+assert.ok(toolsDefaultMatch, "tools default should be present");
+const toolsDefault = [...toolsDefaultMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+assert.deepEqual(toolsDefault, expectedTools);
 assert.match(variables, /variable "tool_versions"[\s\S]*type\s+= map\(string\)[\s\S]*default\s+= \{\}/);
 assert.match(variables, /~\/\.ssh\/id_ed25519\.pub/);
 assert.match(variables, /~\/\.ssh\/id_rsa\.pub/);
@@ -70,9 +74,28 @@ assert.match(dockerScript, /docker-compose-plugin/);
 assert.match(dockerScript, /usermod -aG docker/);
 assert.match(dockerScript, /vm-tool-versions\.txt/);
 
+for (const tool of expectedTools) {
+  const scriptPath = path.join(root, "scripts", `install-${tool}.sh`);
+  assert.ok(fs.existsSync(scriptPath), `scripts/install-${tool}.sh should exist`);
+
+  const script = fs.readFileSync(scriptPath, "utf8");
+  assert.match(script, /set -euo pipefail/, `install-${tool}.sh should fail fast`);
+  assert.match(script, /TOOL_VERSION/, `install-${tool}.sh should read TOOL_VERSION`);
+  assert.match(script, new RegExp(`\\[install-${tool}\\]`), `install-${tool}.sh should use the logging convention`);
+  assert.match(script, /vm-tool-versions\.txt/, `install-${tool}.sh should write the version file`);
+  assert.match(script, new RegExp(`${tool}: %s`), `install-${tool}.sh should record a ${tool} line`);
+}
+
 const readme = read("README.md");
 assert.match(readme, /scripts\/install-<name>\.sh/);
 assert.match(readme, /tools/);
+assert.match(readme, /docker run/);
+
+const tfvarsExample = read("terraform.tfvars.example");
+for (const tool of expectedTools) {
+  assert.match(tfvarsExample, new RegExp(`"${tool}"`), `terraform.tfvars.example should list ${tool}`);
+}
+assert.match(tfvarsExample, /tool_versions\s+= \{/);
 
 const gitignore = read(".gitignore");
 assert.match(gitignore, /^terraform\.tfvars$/m);
