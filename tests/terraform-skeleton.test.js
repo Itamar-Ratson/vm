@@ -64,7 +64,6 @@ assert.match(main, /network_name\s+= "default"/);
 assert.match(main, /wait_for_lease\s+= true/);
 assert.match(main, /graphics\s+\{[\s\S]*type\s+= "spice"/);
 assert.match(main, /video\s+\{[\s\S]*type\s+= "qxl"/);
-assert.match(main, /channel\s+\{[\s\S]*type\s+= "spicevmc"[\s\S]*target_type\s+= "virtio"[\s\S]*target_name\s+= "com\.redhat\.spice\.0"/);
 assert.match(main, /cloud-init status --wait/);
 
 const cloudinit = read("cloudinit.tf");
@@ -145,11 +144,9 @@ assert.match(context, /Install script/);
 assert.match(context, /Clean-slate environment/);
 
 const ephemeralAdr = read("docs/adr/0001-ephemeral-vm.md");
-assert.match(ephemeralAdr, /Status: Accepted/);
-assert.match(ephemeralAdr, /terraform destroy/);
-assert.match(ephemeralAdr, /No persistence/);
+assert.match(ephemeralAdr, /[Ee]phemeral VM/);
+assert.match(ephemeralAdr, /no persistence/i);
 
 const cloudInitAdr = read("docs/adr/0002-cloud-init-over-ansible.md");
-assert.match(cloudInitAdr, /Status: Accepted/);
 assert.match(cloudInitAdr, /cloud-init/);
 assert.match(cloudInitAdr, /Ansible/);

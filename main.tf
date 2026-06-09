@@ -41,12 +41,6 @@ resource "libvirt_domain" "vm" {
     type = "qxl"
   }
 
-  channel {
-    type        = "spicevmc"
-    target_type = "virtio"
-    target_name = "com.redhat.spice.0"
-  }
-
   console {
     type        = "pty"
     target_type = "serial"
