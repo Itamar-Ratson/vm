@@ -30,9 +30,12 @@ data "cloudinit_config" "user_data" {
 }
 
 resource "libvirt_cloudinit_disk" "user_data" {
-  name      = "${var.vm_name}-cloudinit.iso"
-  pool      = "default"
+  name      = "${var.vm_name}-cloudinit"
   user_data = data.cloudinit_config.user_data.rendered
+  meta_data = yamlencode({
+    instance_id    = var.vm_name
+    local_hostname = var.vm_name
+  })
 
   depends_on = [terraform_data.ssh_pubkey_check]
 }

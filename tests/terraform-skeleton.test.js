@@ -35,6 +35,7 @@ function read(file) {
 });
 
 const variables = read("variables.tf");
+const versions = read("versions.tf");
 const expectedTools = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"];
 const installWorkflow = read(".github/workflows/install-scripts.yml");
 assert.match(installWorkflow, /on:\s+[\s\S]*push:/);
@@ -131,21 +132,37 @@ assert.match(variables, /variable "tool_versions"[\s\S]*type\s+= map\(string\)[\
 assert.match(variables, /~\/\.ssh\/id_ed25519\.pub/);
 assert.match(variables, /~\/\.ssh\/id_rsa\.pub/);
 
+assert.match(versions, /version\s+= "~> 0\.9\.0"/);
+
 const main = read("main.tf");
 assert.match(main, /resource "libvirt_volume" "ubuntu_base"/);
-assert.match(main, /source\s+= var\.ubuntu_image_url/);
+assert.match(main, /create\s+= \{[\s\S]*content\s+= \{[\s\S]*url\s+= var\.ubuntu_image_url/);
 assert.match(main, /resource "libvirt_volume" "root"/);
-assert.match(main, /base_volume_id\s+= libvirt_volume\.ubuntu_base\.id/);
-assert.match(main, /network_name\s+= "default"/);
-assert.match(main, /wait_for_lease\s+= true/);
-assert.match(main, /graphics\s+\{[\s\S]*type\s+= "spice"/);
-assert.match(main, /video\s+\{[\s\S]*type\s+= "qxl"/);
+assert.match(main, /backing_store\s+= \{[\s\S]*path\s+= libvirt_volume\.ubuntu_base\.path[\s\S]*format\s+= \{[\s\S]*type\s+= "qcow2"/);
+assert.match(main, /capacity\s+= var\.vm_disk_gb \* 1024 \* 1024 \* 1024/);
+assert.match(main, /resource "libvirt_volume" "cloudinit_iso"/);
+assert.match(main, /url\s+= libvirt_cloudinit_disk\.user_data\.path/);
+assert.match(main, /type\s+= "kvm"/);
+assert.match(main, /os\s+= \{[\s\S]*type\s+= "hvm"[\s\S]*arch\s+= "x86_64"[\s\S]*machine\s+= "q35"/);
+assert.match(main, /devices\s+= \{/);
+assert.match(main, /disks\s+= \[/);
+assert.match(main, /volume\s+= libvirt_volume\.root\.name/);
+assert.match(main, /volume\s+= libvirt_volume\.cloudinit_iso\.name/);
+assert.match(main, /interfaces\s+= \[[\s\S]*network\s+= "default"[\s\S]*wait_for_ip\s+= \{/);
+assert.match(main, /graphics\s+= \[[\s\S]*spice\s+= \{/);
+assert.match(main, /videos\s+= \[[\s\S]*type\s+= "qxl"/);
+assert.match(main, /consoles\s+= \[[\s\S]*type\s+= "pty"/);
+assert.match(main, /channels\s+= \[[\s\S]*spice_vmc\s+= true[\s\S]*virt_io\s+= \{[\s\S]*name\s+= "com\.redhat\.spice\.0"/);
+assert.match(main, /data "libvirt_domain_interface_addresses" "vm"/);
 assert.match(main, /cloud-init status --wait/);
+assert.doesNotMatch(main, /disk\s+\{/);
+assert.doesNotMatch(main, /network_interface\s+\{/);
 
 const cloudinit = read("cloudinit.tf");
 assert.match(cloudinit, /resource "terraform_data" "ssh_pubkey_check"/);
 assert.match(cloudinit, /No SSH public key was found/);
 assert.match(cloudinit, /resource "libvirt_cloudinit_disk" "user_data"/);
+assert.match(cloudinit, /meta_data\s+= yamlencode/);
 assert.match(cloudinit, /install_scripts\s+= local\.install_scripts/);
 assert.match(cloudinit, /tool_versions\s+= var\.tool_versions/);
 
