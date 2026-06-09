@@ -92,16 +92,28 @@ tool_versions = {
 
 ## Testing Install Scripts
 
-Run an install script in the same base container used by CI-style checks:
+The GitHub Actions workflow in `.github/workflows/install-scripts.yml` runs every install script in a fresh `ubuntu:24.04` container twice: once with `TOOL_VERSION=""` for latest, and once with a known-good pin from the workflow matrix.
+
+Run the same latest-style assertion locally with Docker:
 
 ```sh
 docker run --rm -v "$PWD/scripts:/scripts:ro" ubuntu:24.04 bash -c \
-  'apt-get update && apt-get install -y curl ca-certificates sudo && /scripts/install-kind.sh && kind --version && grep "^kind: " /etc/vm-tool-versions.txt'
+  'set -euo pipefail
+   apt-get update
+   apt-get install -y curl ca-certificates sudo
+   TOOL_VERSION="" /scripts/install-kind.sh
+   test -n "$(kind --version)"
+   grep -E "^kind: .*[0-9]" /etc/vm-tool-versions.txt'
 ```
 
-To test a pinned version, pass `TOOL_VERSION`:
+To test a pinned version, pass `TOOL_VERSION` and assert the reported version and version-file line:
 
 ```sh
 docker run --rm -e TOOL_VERSION=v0.32.0 -v "$PWD/scripts:/scripts:ro" ubuntu:24.04 bash -c \
-  'apt-get update && apt-get install -y curl ca-certificates sudo && /scripts/install-kind.sh && kind --version && grep "^kind: " /etc/vm-tool-versions.txt'
+  'set -euo pipefail
+   apt-get update
+   apt-get install -y curl ca-certificates sudo
+   /scripts/install-kind.sh
+   kind --version | grep -F "v0.32.0"
+   grep -E "^kind: .*v0.32.0" /etc/vm-tool-versions.txt'
 ```

@@ -9,6 +9,7 @@ function read(file) {
 }
 
 [
+  ".github/workflows/install-scripts.yml",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -23,6 +24,20 @@ function read(file) {
 
 const variables = read("variables.tf");
 const expectedTools = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"];
+const installWorkflow = read(".github/workflows/install-scripts.yml");
+assert.match(installWorkflow, /on:\s+[\s\S]*push:/);
+assert.match(installWorkflow, /on:\s+[\s\S]*pull_request:/);
+assert.match(installWorkflow, /ubuntu:24\.04/);
+assert.match(installWorkflow, /apt-get update/);
+assert.match(installWorkflow, /apt-get install -y curl ca-certificates sudo/);
+assert.match(installWorkflow, /variant:\s+\["latest", "pinned"\]/);
+for (const tool of expectedTools) {
+  assert.match(installWorkflow, new RegExp(`tool: ${tool}\\b`), `install workflow should include ${tool}`);
+  assert.match(installWorkflow, new RegExp(`script: scripts/install-${tool}\\.sh`), `install workflow should run install-${tool}.sh`);
+}
+assert.match(installWorkflow, /docker compose version/);
+assert.match(installWorkflow, /\/etc\/vm-tool-versions\.txt/);
+
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
 assert.match(variables, /variable "vm_memory_mib"[\s\S]*default\s+= 8192/);
