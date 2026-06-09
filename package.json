@@ -1,5 +1,9 @@
 {
   "name": "vm",
+  "scripts": {
+    "typecheck": "node --check tests/terraform-skeleton.test.js",
+    "test": "node tests/terraform-skeleton.test.js"
+  },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.7.0"
   }

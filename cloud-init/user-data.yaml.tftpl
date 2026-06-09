@@ -1,0 +1,26 @@
+#cloud-config
+hostname: ${username}-sandbox
+manage_etc_hosts: true
+package_update: true
+
+users:
+  - default
+  - name: ${username}
+    groups:
+      - adm
+      - sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+ssh_pwauth: false
+disable_root: true
+
+write_files:
+  - path: /etc/sudoers.d/90-${username}-nopasswd
+    owner: root:root
+    permissions: "0440"
+    content: |
+      ${username} ALL=(ALL) NOPASSWD:ALL
