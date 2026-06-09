@@ -5,6 +5,8 @@ Terraform provisions an ephemeral Ubuntu 24.04 VM on local libvirt. The VM is me
 The VM boots into a GNOME desktop with GDM autologin for the `dev` user, injects your SSH key, grants passwordless sudo, and waits for cloud-init before `terraform apply` returns.
 It installs `ubuntu-desktop-minimal`, Firefox, SPICE guest support, and the selected tool catalog during cloud-init. The default catalog contains Docker and the Docker Compose plugin, KinD, Helm, kubectl, Terraform, Git, GitHub CLI, jq, and yq.
 
+Project terms are defined in `CONTEXT.md`. The lifecycle and provisioning decisions are recorded in `docs/adr/0001-ephemeral-vm.md` and `docs/adr/0002-cloud-init-over-ansible.md`.
+
 ## Prerequisites
 
 - Linux host with KVM support.
