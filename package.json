@@ -1,4 +1,5 @@
 {
+  "name": "vm",
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.7.0"
   }
