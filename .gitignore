@@ -1,0 +1,40 @@
+# Ignore everything
+*
+
+# Allow folders
+!**/
+
+# Allow file types
+!*.yaml
+!*.yml
+!*.tf
+!*.hcl
+!*.md
+!*.tpl
+!*.txt
+!*.sh
+
+# Allow specific files
+!.gitignore
+!Dockerfile
+!.dockerignore
+
+# Terraform state and cache (override folder allowlist)
+terraform/.terraform/**
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform.tfstate.lock.info
+!terraform/terraform.tfvars.example
+
+# Explicitly Disallow
+node_modules
+.sandcastle
+CLAUDE.md
+docs/agents
+
+# Never track files prefixed with `secret-` (they typically hold real
+# credentials produced by `kubectl create secret ... -o yaml`).
+# Example templates that show the structure are explicitly allowed.
+secret-*
+!secret-*.example.*
