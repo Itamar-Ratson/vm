@@ -9,6 +9,9 @@ jobs:
     name: ${{ matrix.tool.tool }} (${{ matrix.variant }})
     runs-on: ubuntu-latest
     container: ubuntu:24.04
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
