@@ -10,9 +10,11 @@ function read(file) {
 
 [
   ".github/workflows/install-scripts.yml",
+  ".github/workflows/cleanup-image.yml",
   "CONTEXT.md",
   "docs/adr/0001-ephemeral-vm.md",
   "docs/adr/0002-cloud-init-over-ansible.md",
+  "packer/cleanup.sh",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -40,6 +42,17 @@ for (const tool of expectedTools) {
 }
 assert.match(installWorkflow, /docker compose version/);
 assert.match(installWorkflow, /\/etc\/vm-tool-versions\.txt/);
+
+const cleanupWorkflow = read(".github/workflows/cleanup-image.yml");
+assert.match(cleanupWorkflow, /container:\s+ubuntu:24\.04/);
+assert.match(cleanupWorkflow, /useradd[\s\S]*builder/);
+assert.match(cleanupWorkflow, /\/etc\/ssh\/ssh_host_ed25519_key/);
+assert.match(cleanupWorkflow, /\/var\/lib\/cloud\/data\/instance-id/);
+assert.match(cleanupWorkflow, /packer\/cleanup\.sh/);
+assert.match(cleanupWorkflow, /test ! -e \/etc\/ssh\/ssh_host_ed25519_key/);
+assert.match(cleanupWorkflow, /test ! -d \/home\/builder/);
+assert.match(cleanupWorkflow, /test ! -s \/etc\/machine-id/);
+assert.match(cleanupWorkflow, /\/etc\/vm-build-info\.txt/);
 
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
@@ -111,6 +124,35 @@ for (const tool of expectedTools) {
   assert.match(script, /vm-tool-versions\.txt/, `install-${tool}.sh should write the version file`);
   assert.match(script, new RegExp(`${tool}: %s`), `install-${tool}.sh should record a ${tool} line`);
 }
+
+const cleanupScriptPath = path.join(root, "packer", "cleanup.sh");
+const cleanupMode = fs.statSync(cleanupScriptPath).mode;
+assert.equal(cleanupMode & 0o111, 0o111, "packer/cleanup.sh should be executable");
+const cleanupScript = fs.readFileSync(cleanupScriptPath, "utf8");
+assert.match(cleanupScript, /set -euo pipefail/);
+assert.match(cleanupScript, /\/etc\/vm-build-info\.txt/);
+for (const key of [
+  "source_cloud_image_url",
+  "source_cloud_image_sha256",
+  "build_timestamp",
+  "git_sha",
+  "tools",
+  "tool_versions",
+]) {
+  assert.match(cleanupScript, new RegExp(`^${key}=`, "m"), `cleanup.sh should write ${key}`);
+}
+assert.match(cleanupScript, /apt-get clean/);
+assert.match(cleanupScript, /\/var\/lib\/apt\/lists/);
+assert.match(cleanupScript, /\/tmp/);
+assert.match(cleanupScript, /\/var\/tmp/);
+assert.match(cleanupScript, /\/var\/log/);
+assert.match(cleanupScript, /userdel -r builder/);
+assert.match(cleanupScript, /\/var\/lib\/cloud/);
+assert.match(cleanupScript, /\/var\/log\/cloud-init/);
+assert.match(cleanupScript, /: >\/etc\/machine-id/);
+assert.match(cleanupScript, /\/var\/lib\/dbus\/machine-id/);
+assert.match(cleanupScript, /\/etc\/ssh\/ssh_host_/);
+assert.match(cleanupScript, /fstrim -av/);
 
 const readme = read("README.md");
 assert.match(readme, /CONTEXT\.md/);
