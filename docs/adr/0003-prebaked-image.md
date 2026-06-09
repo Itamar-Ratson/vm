@@ -1,0 +1,13 @@
+# Pre-baked image instead of runtime cloud-init installs
+
+ADR-0001 framed every `terraform apply` as a fresh install from the upstream Ubuntu cloud image, with `ubuntu-desktop-minimal` + tool installs taking ~5–8 min as the deliberate price of reproducibility. In practice on a 16 GB host the runtime cost was 15–25 min and the Ephemeral VM regularly hung or OOMed during the desktop install — it was simultaneously bringing up X11/GDM *and* running a thousand-package apt install, and lost.
+
+We now bake those installs into a versioned qcow2 produced by Packer (`./packer/build.sh`). Runtime cloud-init shrinks to writing one `authorized_keys` file for the pre-existing `dev` user; the desktop, the SPICE/qxl stack, and the entire Tool catalog are already on disk when the Ephemeral VM first boots. Apply time drops from tens of minutes to seconds, and the OOM-during-install failure mode disappears entirely.
+
+This refines, not reverses, ADR-0001's cleanroom contract. The guarantee now reads: *a given Pre-baked image tag produces an identical Ephemeral VM, every time.* Reproducibility within a tag is exact. Reproducibility across image rebuilds is not — when we rebuild, upstream Ubuntu package versions and tool releases may have moved. We accept that drift in exchange for fast applies and treat the image tag as the operator's reproducibility unit (pin a tag for a known experiment; bump tags to pick up upstream).
+
+The Pre-baked image is built by booting a transient Builder VM, running the same per-tool Install scripts ADR-0002 settled on, then sealing the disk after wiping cloud-init state, machine-id, SSH host keys, and the Builder VM's temporary SSH user. The Ephemeral VM at apply time is therefore *not* a copy of the Builder VM — it's a copy of the Builder VM's disk in a known clean state, with the operator's SSH key injected at first boot.
+
+Implications for ADR-0002: the per-tool shell scripts still exist and are still the right shape; they just run during `packer build` inside the Builder VM instead of via cloud-init `runcmd` on the Ephemeral VM. Ansible's value proposition (idempotent reconciliation, role composition, templated multi-service config) is still not justified — installs run exactly once, against a known-clean Builder VM, never against a long-lived host. The execution context shifted, the toolchain choice did not.
+
+We will revisit this decision if (a) upstream drift becomes a real reproducibility problem before tag bumps propagate to operators, (b) image distribution overhead (ghcr push/pull, local cache size) outweighs the apply-time savings, or (c) operators need to customize the Tool catalog per-apply rather than per-image (today they rebuild the image).
