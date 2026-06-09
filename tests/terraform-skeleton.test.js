@@ -10,6 +10,9 @@ function read(file) {
 
 [
   ".github/workflows/install-scripts.yml",
+  "CONTEXT.md",
+  "docs/adr/0001-ephemeral-vm.md",
+  "docs/adr/0002-cloud-init-over-ansible.md",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -111,6 +114,9 @@ for (const tool of expectedTools) {
 }
 
 const readme = read("README.md");
+assert.match(readme, /CONTEXT\.md/);
+assert.match(readme, /docs\/adr\/0001-ephemeral-vm\.md/);
+assert.match(readme, /docs\/adr\/0002-cloud-init-over-ansible\.md/);
 assert.match(readme, /virt-viewer/);
 assert.match(readme, /GNOME/);
 assert.match(readme, /autologin/);
@@ -131,3 +137,19 @@ assert.match(gitignore, /^terraform\.tfvars$/m);
 assert.match(gitignore, /^\*\.tfstate$/m);
 assert.match(gitignore, /^\*\.tfstate\.\*$/m);
 assert.match(gitignore, /^\.terraform\/\*\*$/m);
+
+const context = read("CONTEXT.md");
+assert.match(context, /Ephemeral VM/);
+assert.match(context, /Tool catalog/);
+assert.match(context, /Install script/);
+assert.match(context, /Clean-slate environment/);
+
+const ephemeralAdr = read("docs/adr/0001-ephemeral-vm.md");
+assert.match(ephemeralAdr, /Status: Accepted/);
+assert.match(ephemeralAdr, /terraform destroy/);
+assert.match(ephemeralAdr, /No persistence/);
+
+const cloudInitAdr = read("docs/adr/0002-cloud-init-over-ansible.md");
+assert.match(cloudInitAdr, /Status: Accepted/);
+assert.match(cloudInitAdr, /cloud-init/);
+assert.match(cloudInitAdr, /Ansible/);
