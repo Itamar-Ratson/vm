@@ -41,6 +41,7 @@ terraform/.terraform.tfstate.lock.info
 node_modules
 .sandcastle
 CLAUDE.md
+CONTEXT.md
 docs/agents
 
 # Never track files prefixed with `secret-` (they typically hold real
