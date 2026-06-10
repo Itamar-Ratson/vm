@@ -15,6 +15,11 @@ function read(file) {
   "docs/adr/0001-ephemeral-vm.md",
   "docs/adr/0002-cloud-init-over-ansible.md",
   "packer/cleanup.sh",
+  "packer/build.sh",
+  "packer/devops-sandbox.pkr.hcl",
+  "packer/seed/meta-data",
+  "packer/seed/user-data.tpl",
+  "packer/.gitignore",
   "terraform/versions.tf",
   "terraform/providers.tf",
   "terraform/variables.tf",
@@ -54,6 +59,58 @@ assert.match(cleanupWorkflow, /test ! -e \/etc\/ssh\/ssh_host_ed25519_key/);
 assert.match(cleanupWorkflow, /test ! -d \/home\/builder/);
 assert.match(cleanupWorkflow, /test ! -s \/etc\/machine-id/);
 assert.match(cleanupWorkflow, /\/etc\/vm-build-info\.txt/);
+
+const packerBuildPath = path.join(root, "packer", "build.sh");
+const packerBuildMode = fs.statSync(packerBuildPath).mode;
+assert.equal(packerBuildMode & 0o111, 0o111, "packer/build.sh should be executable");
+const packerBuild = fs.readFileSync(packerBuildPath, "utf8");
+assert.match(packerBuild, /set -euo pipefail/);
+assert.match(packerBuild, /ssh-keygen -t ed25519/);
+assert.match(packerBuild, /\.build/);
+assert.match(packerBuild, /builder_id/);
+assert.match(packerBuild, /cleanup\(\)[\s\S]*rm -rf/);
+assert.match(packerBuild, /trap cleanup EXIT/);
+assert.match(packerBuild, /sed[\s\S]*@SSH_PUBKEY@/);
+assert.match(packerBuild, /packer build/);
+assert.match(packerBuild, /source_cloud_image_sha256/);
+
+const packerTemplate = read("packer/devops-sandbox.pkr.hcl");
+assert.match(packerTemplate, /source "qemu" "ubuntu_noble"/);
+assert.match(packerTemplate, /iso_checksum\s+= "none"/);
+assert.match(packerTemplate, /memory\s+= 6144/);
+assert.match(packerTemplate, /cpus\s+= 6/);
+assert.match(packerTemplate, /disk_size\s+= "12G"/);
+assert.match(packerTemplate, /cd_files\s+= \[/);
+assert.match(packerTemplate, /seed\/user-data/);
+assert.match(packerTemplate, /seed\/meta-data/);
+assert.match(packerTemplate, /ssh_username\s+= "builder"/);
+assert.match(packerTemplate, /ubuntu-desktop-minimal/);
+assert.match(packerTemplate, /spice-vdagent/);
+assert.match(packerTemplate, /AutomaticLogin=dev/);
+assert.match(packerTemplate, /useradd[\s\S]*dev/);
+assert.match(packerTemplate, /scripts\//);
+assert.match(packerTemplate, /for tool in var\.tools/);
+assert.match(packerTemplate, /install-\$\{tool\}\.sh/);
+for (const tool of expectedTools) {
+  assert.match(packerTemplate, new RegExp(`"${tool}"`), `Packer default catalog should include ${tool}`);
+}
+assert.match(packerTemplate, /cleanup\.sh/);
+assert.match(packerTemplate, /qemu-img convert -c -O qcow2/);
+
+const seedMetaData = read("packer/seed/meta-data");
+assert.match(seedMetaData, /instance-id: builder/);
+assert.match(seedMetaData, /local-hostname: builder-vm/);
+
+const seedUserData = read("packer/seed/user-data.tpl");
+assert.match(seedUserData, /#cloud-config/);
+assert.match(seedUserData, /name: builder/);
+assert.match(seedUserData, /@SSH_PUBKEY@/);
+assert.match(seedUserData, /sudo: ALL=\(ALL\) NOPASSWD:ALL/);
+
+const packerGitignore = read("packer/.gitignore");
+assert.match(packerGitignore, /^output\/$/m);
+assert.match(packerGitignore, /^\.build\/$/m);
+assert.match(packerGitignore, /^cache\/$/m);
 
 for (const removedVariable of ["tools", "tool_versions", "username", "vm_name"]) {
   assert.doesNotMatch(
@@ -209,6 +266,7 @@ assert.match(gitignore, /^\*\.tfstate$/m);
 assert.match(gitignore, /^\*\.tfstate\.\*$/m);
 assert.match(gitignore, /^\.terraform\/\*\*$/m);
 assert.match(gitignore, /^!CONTEXT\.md$/m);
+assert.match(gitignore, /^!packer\/seed\/meta-data$/m);
 
 const context = read("CONTEXT.md");
 assert.match(context, /Ephemeral VM/);
