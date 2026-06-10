@@ -120,9 +120,13 @@ build {
     ]
   }
 
+  provisioner "shell" {
+    inline = ["mkdir -p /tmp/install-scripts"]
+  }
+
   provisioner "file" {
     source      = "${path.root}/../scripts/"
-    destination = "/tmp/install-scripts"
+    destination = "/tmp/install-scripts/"
   }
 
   provisioner "shell" {
