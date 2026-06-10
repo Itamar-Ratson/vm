@@ -48,8 +48,9 @@ wipe_dir /var/tmp
 wipe_dir /var/log
 
 if getent passwd builder >/dev/null; then
-  userdel -r builder
+  userdel -f -r builder 2>/dev/null || true
 fi
+rm -rf /home/builder /var/mail/builder
 
 wipe_dir /var/lib/cloud
 rm -f /var/log/cloud-init /var/log/cloud-init.log /var/log/cloud-init-output.log
