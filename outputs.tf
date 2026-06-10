@@ -1,11 +1,11 @@
 output "vm_ip" {
   description = "Libvirt-assigned VM IP address."
-  value       = libvirt_domain.vm.network_interface[0].addresses[0]
+  value       = data.libvirt_domain_interface_addresses.vm.interfaces[0].addrs[0].addr
 }
 
 output "ssh_command" {
   description = "Command for SSH access to the VM."
-  value       = "ssh ${var.username}@${libvirt_domain.vm.network_interface[0].addresses[0]}"
+  value       = "ssh ${var.username}@${data.libvirt_domain_interface_addresses.vm.interfaces[0].addrs[0].addr}"
 }
 
 output "virt_viewer_command" {

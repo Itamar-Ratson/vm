@@ -11,10 +11,17 @@ function read(file) {
 [
   ".github/workflows/install-scripts.yml",
   ".github/workflows/cleanup-image.yml",
+  ".github/workflows/packer.yml",
   "CONTEXT.md",
   "docs/adr/0001-ephemeral-vm.md",
   "docs/adr/0002-cloud-init-over-ansible.md",
+  "docs/adr/0003-prebaked-image.md",
+  "packer/.gitignore",
+  "packer/build.sh",
   "packer/cleanup.sh",
+  "packer/devops-sandbox.pkr.hcl",
+  "packer/seed/meta-data",
+  "packer/seed/user-data.tpl",
   "versions.tf",
   "providers.tf",
   "variables.tf",
@@ -28,6 +35,7 @@ function read(file) {
 });
 
 const variables = read("variables.tf");
+const versions = read("versions.tf");
 const expectedTools = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"];
 const installWorkflow = read(".github/workflows/install-scripts.yml");
 assert.match(installWorkflow, /on:\s+[\s\S]*push:/);
@@ -54,6 +62,62 @@ assert.match(cleanupWorkflow, /test ! -d \/home\/builder/);
 assert.match(cleanupWorkflow, /test ! -s \/etc\/machine-id/);
 assert.match(cleanupWorkflow, /\/etc\/vm-build-info\.txt/);
 
+const packerWorkflow = read(".github/workflows/packer.yml");
+assert.match(packerWorkflow, /hashicorp\/setup-packer/);
+assert.match(packerWorkflow, /packer init packer\/devops-sandbox\.pkr\.hcl/);
+assert.match(packerWorkflow, /packer validate[\s\S]*packer\/devops-sandbox\.pkr\.hcl/);
+
+const packerTemplate = read("packer/devops-sandbox.pkr.hcl");
+assert.match(packerTemplate, /source "qemu" "devops_sandbox"/);
+assert.match(packerTemplate, /accelerator\s+= "kvm"/);
+assert.match(packerTemplate, /headless\s+= true/);
+assert.match(packerTemplate, /cpus\s+= 6/);
+assert.match(packerTemplate, /memory\s+= 6144/);
+assert.match(packerTemplate, /disk_size\s+= "12G"/);
+assert.match(packerTemplate, /iso_checksum\s+= "none"/);
+assert.match(packerTemplate, /cd_files\s+= \[[\s\S]*seed\/meta-data[\s\S]*seed\/user-data/);
+assert.match(packerTemplate, /cloud-init status --wait/);
+assert.match(packerTemplate, /ubuntu-desktop-minimal[\s\S]*spice-vdagent[\s\S]*firefox/);
+assert.match(packerTemplate, /AutomaticLogin=dev/);
+assert.match(packerTemplate, /useradd[\s\S]*dev/);
+assert.match(packerTemplate, /\/tmp\/install-scripts/);
+for (const tool of expectedTools) {
+  assert.match(packerTemplate, new RegExp(`"${tool}"`), `packer tools default should include ${tool}`);
+}
+assert.match(packerTemplate, /install-\$\{tool\}\.sh/);
+assert.match(packerTemplate, /SOURCE_CLOUD_IMAGE_URL/);
+assert.match(packerTemplate, /SOURCE_CLOUD_IMAGE_SHA256/);
+assert.match(packerTemplate, /BUILD_TIMESTAMP_RFC3339/);
+assert.match(packerTemplate, /GIT_SHORT_SHA/);
+assert.match(packerTemplate, /qemu-img convert -c -O qcow2/);
+assert.match(packerTemplate, /devops-sandbox-base\.qcow2/);
+
+const packerBuildPath = path.join(root, "packer", "build.sh");
+const packerBuildMode = fs.statSync(packerBuildPath).mode;
+assert.equal(packerBuildMode & 0o111, 0o111, "packer/build.sh should be executable");
+const packerBuild = fs.readFileSync(packerBuildPath, "utf8");
+assert.match(packerBuild, /ssh-keygen -q -t ed25519/);
+assert.match(packerBuild, /trap cleanup EXIT/);
+assert.match(packerBuild, /rm -rf "\$build_dir"/);
+assert.match(packerBuild, /@SSH_PUBKEY@/);
+assert.match(packerBuild, /packer build/);
+assert.match(packerBuild, /ssh_private_key_file=\$build_dir\/builder_id/);
+assert.match(packerBuild, /devops-sandbox-base\.qcow2/);
+
+const packerMetaData = read("packer/seed/meta-data");
+assert.match(packerMetaData, /instance-id: builder/);
+assert.match(packerMetaData, /local-hostname: builder-vm/);
+
+const packerSeedTemplate = read("packer/seed/user-data.tpl");
+assert.match(packerSeedTemplate, /name: builder/);
+assert.match(packerSeedTemplate, /@SSH_PUBKEY@/);
+assert.match(packerSeedTemplate, /sudo: ALL=\(ALL\) NOPASSWD:ALL/);
+
+const packerGitignore = read("packer/.gitignore");
+assert.match(packerGitignore, /^output\/$/m);
+assert.match(packerGitignore, /^\.build\/$/m);
+assert.match(packerGitignore, /^cache\/$/m);
+
 assert.match(variables, /variable "vm_name"[\s\S]*default\s+= "devops-sandbox"/);
 assert.match(variables, /variable "vm_vcpus"[\s\S]*default\s+= 6/);
 assert.match(variables, /variable "vm_memory_mib"[\s\S]*default\s+= 8192/);
@@ -68,21 +132,37 @@ assert.match(variables, /variable "tool_versions"[\s\S]*type\s+= map\(string\)[\
 assert.match(variables, /~\/\.ssh\/id_ed25519\.pub/);
 assert.match(variables, /~\/\.ssh\/id_rsa\.pub/);
 
+assert.match(versions, /version\s+= "~> 0\.9\.0"/);
+
 const main = read("main.tf");
 assert.match(main, /resource "libvirt_volume" "ubuntu_base"/);
-assert.match(main, /source\s+= var\.ubuntu_image_url/);
+assert.match(main, /create\s+= \{[\s\S]*content\s+= \{[\s\S]*url\s+= var\.ubuntu_image_url/);
 assert.match(main, /resource "libvirt_volume" "root"/);
-assert.match(main, /base_volume_id\s+= libvirt_volume\.ubuntu_base\.id/);
-assert.match(main, /network_name\s+= "default"/);
-assert.match(main, /wait_for_lease\s+= true/);
-assert.match(main, /graphics\s+\{[\s\S]*type\s+= "spice"/);
-assert.match(main, /video\s+\{[\s\S]*type\s+= "qxl"/);
+assert.match(main, /backing_store\s+= \{[\s\S]*path\s+= libvirt_volume\.ubuntu_base\.path[\s\S]*format\s+= \{[\s\S]*type\s+= "qcow2"/);
+assert.match(main, /capacity\s+= var\.vm_disk_gb \* 1024 \* 1024 \* 1024/);
+assert.match(main, /resource "libvirt_volume" "cloudinit_iso"/);
+assert.match(main, /url\s+= libvirt_cloudinit_disk\.user_data\.path/);
+assert.match(main, /type\s+= "kvm"/);
+assert.match(main, /os\s+= \{[\s\S]*type\s+= "hvm"[\s\S]*arch\s+= "x86_64"[\s\S]*machine\s+= "q35"/);
+assert.match(main, /devices\s+= \{/);
+assert.match(main, /disks\s+= \[/);
+assert.match(main, /volume\s+= libvirt_volume\.root\.name/);
+assert.match(main, /volume\s+= libvirt_volume\.cloudinit_iso\.name/);
+assert.match(main, /interfaces\s+= \[[\s\S]*network\s+= "default"[\s\S]*wait_for_ip\s+= \{/);
+assert.match(main, /graphics\s+= \[[\s\S]*spice\s+= \{/);
+assert.match(main, /videos\s+= \[[\s\S]*type\s+= "qxl"/);
+assert.match(main, /consoles\s+= \[[\s\S]*type\s+= "pty"/);
+assert.match(main, /channels\s+= \[[\s\S]*spice_vmc\s+= true[\s\S]*virt_io\s+= \{[\s\S]*name\s+= "com\.redhat\.spice\.0"/);
+assert.match(main, /data "libvirt_domain_interface_addresses" "vm"/);
 assert.match(main, /cloud-init status --wait/);
+assert.doesNotMatch(main, /disk\s+\{/);
+assert.doesNotMatch(main, /network_interface\s+\{/);
 
 const cloudinit = read("cloudinit.tf");
 assert.match(cloudinit, /resource "terraform_data" "ssh_pubkey_check"/);
 assert.match(cloudinit, /No SSH public key was found/);
 assert.match(cloudinit, /resource "libvirt_cloudinit_disk" "user_data"/);
+assert.match(cloudinit, /meta_data\s+= yamlencode/);
 assert.match(cloudinit, /install_scripts\s+= local\.install_scripts/);
 assert.match(cloudinit, /tool_versions\s+= var\.tool_versions/);
 
@@ -116,6 +196,10 @@ assert.match(dockerScript, /vm-tool-versions\.txt/);
 for (const tool of expectedTools) {
   const scriptPath = path.join(root, "scripts", `install-${tool}.sh`);
   assert.ok(fs.existsSync(scriptPath), `scripts/install-${tool}.sh should exist`);
+  assert.ok(
+    !fs.existsSync(path.join(root, "terraform", "scripts", `install-${tool}.sh`)),
+    `terraform/scripts/install-${tool}.sh should not exist`,
+  );
 
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.match(script, /set -euo pipefail/, `install-${tool}.sh should fail fast`);

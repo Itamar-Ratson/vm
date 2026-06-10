@@ -22,6 +22,7 @@
 !.dockerignore
 !package.json
 !package-lock.json
+!packer/seed/meta-data
 
 # Terraform state and cache (override folder allowlist)
 .terraform/**
@@ -41,7 +42,6 @@ terraform/.terraform.tfstate.lock.info
 node_modules
 .sandcastle
 CLAUDE.md
-CONTEXT.md
 docs/agents
 
 # Never track files prefixed with `secret-` (they typically hold real
