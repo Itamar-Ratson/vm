@@ -1,0 +1,7 @@
+vm_vcpus        = 6
+vm_memory_mib   = 8192
+vm_disk_gb      = 20
+ssh_pubkey_path = null
+
+# Override this to test a new Packer build before promoting it.
+image_path = "../packer/output/devops-sandbox-base.qcow2"

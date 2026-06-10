@@ -1,9 +1,3 @@
-variable "vm_name" {
-  description = "Name for the libvirt domain and related volumes."
-  type        = string
-  default     = "devops-sandbox"
-}
-
 variable "vm_vcpus" {
   description = "Number of virtual CPUs assigned to the VM."
   type        = number
@@ -17,15 +11,9 @@ variable "vm_memory_mib" {
 }
 
 variable "vm_disk_gb" {
-  description = "Maximum size of the thin-provisioned qcow2 root disk, in GiB."
+  description = "Maximum size of the thin-provisioned qcow2 root disk, in GiB. Must be at least as large as the pre-baked image allocation."
   type        = number
   default     = 20
-}
-
-variable "username" {
-  description = "User created inside the VM."
-  type        = string
-  default     = "dev"
 }
 
 variable "ssh_pubkey_path" {
@@ -34,22 +22,10 @@ variable "ssh_pubkey_path" {
   default     = null
 }
 
-variable "ubuntu_image_url" {
-  description = "Ubuntu 24.04 cloud image URL used as the root disk backing image."
+variable "image_path" {
+  description = "Path to the pre-baked qcow2 image produced by Packer."
   type        = string
-  default     = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-}
-
-variable "tools" {
-  description = "Tool catalog entries installed during cloud-init, in order."
-  type        = list(string)
-  default     = ["docker", "kind", "helm", "kubectl", "terraform", "git", "gh", "jq", "yq"]
-}
-
-variable "tool_versions" {
-  description = "Optional per-tool version pins. Missing or empty values install the latest available version."
-  type        = map(string)
-  default     = {}
+  default     = "${path.module}/../packer/output/devops-sandbox-base.qcow2"
 }
 
 locals {

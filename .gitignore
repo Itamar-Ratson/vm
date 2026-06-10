@@ -36,6 +36,7 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/.terraform.tfstate.lock.info
 !terraform/terraform.tfvars.example
+!packer/seed/meta-data
 !terraform.tfvars.example
 !packer/seed/meta-data
 
@@ -44,6 +45,7 @@ node_modules
 .sandcastle
 CLAUDE.md
 docs/agents
+!CONTEXT.md
 
 # Never track files prefixed with `secret-` (they typically hold real
 # credentials produced by `kubectl create secret ... -o yaml`).

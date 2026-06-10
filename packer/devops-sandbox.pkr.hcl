@@ -7,24 +7,9 @@ packer {
   }
 }
 
-variable "iso_url" {
+variable "source_cloud_image_file" {
   type    = string
-  default = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-}
-
-variable "ssh_private_key_file" {
-  type    = string
-  default = ""
-}
-
-variable "seed_meta_data_path" {
-  type    = string
-  default = "packer/seed/meta-data"
-}
-
-variable "seed_user_data_path" {
-  type    = string
-  default = "packer/seed/user-data.tpl"
+  default = "cache/ubuntu-noble-server-cloudimg-amd64.img"
 }
 
 variable "source_cloud_image_url" {
@@ -37,12 +22,12 @@ variable "source_cloud_image_sha256" {
   default = "unknown"
 }
 
-variable "build_timestamp_rfc3339" {
+variable "ssh_private_key_file" {
   type    = string
-  default = "unknown"
+  default = ".build/builder_id"
 }
 
-variable "git_short_sha" {
+variable "git_sha" {
   type    = string
   default = "unknown"
 }
@@ -58,27 +43,32 @@ variable "tool_versions" {
 }
 
 locals {
-  tools_csv         = join(",", var.tools)
-  tool_versions_csv = join(",", [for name, version in var.tool_versions : "${name}=${version}"])
+  build_timestamp = timestamp()
+  tool_versions   = join(",", [for name, version in var.tool_versions : "${name}=${version}"])
 }
 
-source "qemu" "devops_sandbox" {
-  iso_url          = var.iso_url
-  iso_checksum     = "none"
-  disk_image       = true
-  output_directory = "packer/output"
+source "qemu" "ubuntu_noble" {
+  iso_url      = var.source_cloud_image_file
+  iso_checksum = "none"
+  disk_image   = true
+
+  output_directory = "${path.root}/output"
   vm_name          = "devops-sandbox-base.qcow2"
   format           = "qcow2"
+  disk_size        = "12G"
+  disk_compression = true
 
   accelerator = "kvm"
   headless    = true
   memory      = 6144
   cpus        = 6
-  disk_size   = "12G"
+
+  disk_interface = "virtio"
+  net_device     = "virtio-net"
 
   cd_files = [
-    var.seed_meta_data_path,
-    var.seed_user_data_path,
+    "${path.root}/.build/seed/user-data",
+    "${path.root}/.build/seed/meta-data",
   ]
   cd_label = "cidata"
 
@@ -88,17 +78,11 @@ source "qemu" "devops_sandbox" {
 
   shutdown_command = "sudo shutdown -P now"
 
-  qemuargs = [
-    ["-machine", "type=q35,accel=kvm"],
-    ["-device", "virtio-net-pci,netdev=user.0"],
-    ["-device", "virtio-rng-pci"],
-    ["-vga", "qxl"],
-    ["-spice", "port=5930,disable-ticketing=on"],
-  ]
+  qemuargs = [["-device", "virtio-rng-pci"]]
 }
 
 build {
-  sources = ["source.qemu.devops_sandbox"]
+  sources = ["source.qemu.ubuntu_noble"]
 
   provisioner "shell" {
     inline = [
@@ -109,77 +93,60 @@ build {
   provisioner "shell" {
     inline = [
       "sudo apt-get update",
-      "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop-minimal spice-vdagent firefox",
+      "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop-minimal spice-vdagent firefox qemu-guest-agent cloud-guest-utils",
     ]
   }
 
   provisioner "shell" {
     inline = [
-      "sudo install -d -m 0755 /etc/gdm3",
+      "sudo useradd --create-home --shell /bin/bash --groups sudo,adm dev",
+      "sudo passwd --lock dev",
+      "sudo install -d -m 0700 -o dev -g dev /home/dev/.ssh",
+      "printf 'dev ALL=(ALL) NOPASSWD:ALL\\n' | sudo tee /etc/sudoers.d/90-dev-nopasswd >/dev/null",
+      "sudo chmod 0440 /etc/sudoers.d/90-dev-nopasswd",
+      "sudo mkdir -p /etc/gdm3",
       "printf '[daemon]\\nAutomaticLoginEnable=true\\nAutomaticLogin=dev\\n' | sudo tee /etc/gdm3/custom.conf >/dev/null",
     ]
   }
 
-  provisioner "shell" {
-    inline = [
-      "if ! id -u dev >/dev/null 2>&1; then sudo useradd --create-home --shell /bin/bash --groups sudo,adm dev; fi",
-      "sudo passwd -l dev",
-      "echo 'dev ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/90-dev-nopasswd >/dev/null",
-      "sudo chmod 0440 /etc/sudoers.d/90-dev-nopasswd",
-      "sudo install -d -m 0700 -o dev -g dev /home/dev/.ssh",
-    ]
-  }
-
   provisioner "file" {
-    source      = "scripts/"
+    source      = "${path.root}/../scripts/"
     destination = "/tmp/install-scripts"
   }
 
   provisioner "shell" {
-    inline = [
-      "sudo install -d -m 0755 /usr/local/sbin",
-      "sudo find /tmp/install-scripts -maxdepth 1 -name 'install-*.sh' -exec install -m 0755 {} /usr/local/sbin/ \\;",
-    ]
-  }
-
-  dynamic "provisioner" {
-    for_each = var.tools
-    labels   = ["shell"]
-
-    content {
-      environment_vars = [
-        "TOOL_VERSION=${lookup(var.tool_versions, provisioner.value, "")}",
-      ]
-      inline = [
-        "sudo --preserve-env=TOOL_VERSION /usr/local/sbin/install-${provisioner.value}.sh",
-      ]
-    }
+    inline = concat(
+      [
+        "sudo chmod +x /tmp/install-scripts/install-*.sh",
+      ],
+      [for tool in var.tools : "sudo env TOOL_VERSION='${lookup(var.tool_versions, tool, "")}' /tmp/install-scripts/install-${tool}.sh"],
+    )
   }
 
   provisioner "file" {
-    source      = "packer/cleanup.sh"
-    destination = "/tmp/cleanup.sh"
+    source      = "${path.root}/cleanup.sh"
+    destination = "/tmp/packer-cleanup.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "SOURCE_CLOUD_IMAGE_URL=${var.source_cloud_image_url}",
       "SOURCE_CLOUD_IMAGE_SHA256=${var.source_cloud_image_sha256}",
-      "BUILD_TIMESTAMP_RFC3339=${var.build_timestamp_rfc3339}",
-      "GIT_SHORT_SHA=${var.git_short_sha}",
-      "TOOLS=${local.tools_csv}",
-      "TOOL_VERSIONS=${local.tool_versions_csv}",
+      "BUILD_TIMESTAMP_RFC3339=${local.build_timestamp}",
+      "GIT_SHORT_SHA=${var.git_sha}",
+      "TOOLS=${join(",", var.tools)}",
+      "TOOL_VERSIONS=${local.tool_versions}",
     ]
+
     inline = [
-      "sudo --preserve-env=SOURCE_CLOUD_IMAGE_URL,SOURCE_CLOUD_IMAGE_SHA256,BUILD_TIMESTAMP_RFC3339,GIT_SHORT_SHA,TOOLS,TOOL_VERSIONS bash /tmp/cleanup.sh",
+      "sudo --preserve-env=SOURCE_CLOUD_IMAGE_URL,SOURCE_CLOUD_IMAGE_SHA256,BUILD_TIMESTAMP_RFC3339,GIT_SHORT_SHA,TOOLS,TOOL_VERSIONS bash /tmp/packer-cleanup.sh",
     ]
   }
 
   post-processor "shell-local" {
     inline = [
-      "tmp='packer/output/devops-sandbox-base.qcow2.compressed'",
-      "qemu-img convert -c -O qcow2 packer/output/devops-sandbox-base.qcow2 \"$tmp\"",
-      "mv \"$tmp\" packer/output/devops-sandbox-base.qcow2",
+      "qemu-img convert -c -O qcow2 '${path.root}/output/devops-sandbox-base.qcow2' '${path.root}/output/devops-sandbox-base.qcow2.compressed'",
+      "mv '${path.root}/output/devops-sandbox-base.qcow2.compressed' '${path.root}/output/devops-sandbox-base.qcow2'",
     ]
   }
 }
