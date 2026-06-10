@@ -16,7 +16,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 for name in "${required_env[@]}"; do
-  if [ -z "${!name:-}" ]; then
+  if [ -z "${!name+x}" ]; then
     printf 'required environment variable %s is not set\n' "$name" >&2
     exit 1
   fi
