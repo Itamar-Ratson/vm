@@ -40,7 +40,8 @@ wipe_dir() {
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
-rm -rf /var/cache/apt/archives/*.deb /var/cache/apt/*.bin
+rm -rf /var/cache/apt/*.bin
+wipe_dir /var/cache/apt/archives
 
 wipe_dir /tmp
 wipe_dir /var/tmp
