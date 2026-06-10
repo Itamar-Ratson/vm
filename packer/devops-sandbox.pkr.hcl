@@ -72,9 +72,10 @@ source "qemu" "ubuntu_noble" {
   ]
   cd_label = "cidata"
 
-  ssh_username         = "builder"
-  ssh_private_key_file = var.ssh_private_key_file
-  ssh_timeout          = "30m"
+  ssh_username             = "builder"
+  ssh_private_key_file     = var.ssh_private_key_file
+  ssh_timeout              = "30m"
+  ssh_handshake_attempts   = 100
 
   shutdown_command = "sudo shutdown -P now"
 
@@ -91,9 +92,19 @@ build {
   }
 
   provisioner "shell" {
+    expect_disconnect = true
     inline = [
       "sudo apt-get update",
-      "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop-minimal spice-vdagent firefox qemu-guest-agent cloud-guest-utils",
+      "sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y ubuntu-desktop-minimal spice-vdagent firefox qemu-guest-agent cloud-guest-utils",
+      "sudo reboot",
+    ]
+  }
+
+  provisioner "shell" {
+    pause_before = "60s"
+    inline = [
+      "sudo dpkg --configure -a",
+      "for pkg in ubuntu-desktop-minimal spice-vdagent firefox qemu-guest-agent cloud-guest-utils; do dpkg-query -W -f='$${Status}\\n' \"$pkg\" | grep -q 'install ok installed' || { echo \"$pkg not installed\" >&2; exit 1; }; done",
     ]
   }
 
