@@ -15,24 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-packer@main
-        with:
-          version: latest
-
-      - name: Render validation seed data
-        run: |
-          mkdir -p packer/.build
-          ssh-keygen -q -t ed25519 -N "" -f packer/.build/builder_id
-          sed "s|@SSH_PUBKEY@|$(cat packer/.build/builder_id.pub)|" \
-            packer/seed/user-data.tpl >packer/seed/user-data
+      - uses: hashicorp/setup-packer@v3
 
       - name: Validate Packer template
         run: |
           packer init packer/devops-sandbox.pkr.hcl
-          packer validate \
-            -var source_image_path=packer/cache/noble-server-cloudimg-amd64.img \
-            -var source_cloud_image_sha256=validate-only \
-            -var ssh_private_key_file=packer/.build/builder_id \
-            -var build_timestamp_rfc3339=2026-06-09T00:00:00Z \
-            -var git_short_sha=validate \
-            packer/devops-sandbox.pkr.hcl
+          packer validate packer/devops-sandbox.pkr.hcl

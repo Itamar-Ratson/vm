@@ -10,5 +10,6 @@ users:
     lock_passwd: true
     ssh_authorized_keys:
       - @SSH_PUBKEY@
+
 ssh_pwauth: false
 disable_root: true
