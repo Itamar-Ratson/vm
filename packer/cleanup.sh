@@ -65,3 +65,7 @@ rm -f /etc/ssh/ssh_host_*
 if ! fstrim -av; then
   printf 'fstrim is unavailable in this environment; continuing\n' >&2
 fi
+
+if command -v systemd-run >/dev/null && [ -d /run/systemd/system ]; then
+  systemd-run --on-active=5s /sbin/shutdown -P now >/dev/null
+fi

@@ -77,7 +77,7 @@ source "qemu" "ubuntu_noble" {
   ssh_timeout              = "30m"
   ssh_handshake_attempts   = 100
 
-  shutdown_command = "sudo shutdown -P now"
+  shutdown_timeout = "5m"
 
   qemuargs = [["-device", "virtio-rng-pci"]]
 }
