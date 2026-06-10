@@ -29,4 +29,6 @@ jobs:
       - name: Validate Packer template
         run: |
           packer init packer/devops-sandbox.pkr.hcl
-          packer validate packer/devops-sandbox.pkr.hcl
+          packer validate \
+            -var 'ssh_private_key_file=packer/.build/builder_id' \
+            packer/devops-sandbox.pkr.hcl
