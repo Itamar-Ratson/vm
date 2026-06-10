@@ -41,8 +41,8 @@ terraform/.terraform.tfstate.lock.info
 node_modules
 .sandcastle
 CLAUDE.md
-CONTEXT.md
 docs/agents
+!CONTEXT.md
 
 # Never track files prefixed with `secret-` (they typically hold real
 # credentials produced by `kubectl create secret ... -o yaml`).
