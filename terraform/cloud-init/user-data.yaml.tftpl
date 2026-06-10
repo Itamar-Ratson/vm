@@ -1,0 +1,10 @@
+#cloud-config
+ssh_pwauth: false
+disable_root: true
+
+write_files:
+  - path: /home/dev/.ssh/authorized_keys
+    owner: dev:dev
+    permissions: "0600"
+    content: |
+      ${ssh_public_key}

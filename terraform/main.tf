@@ -1,14 +1,14 @@
 resource "libvirt_volume" "ubuntu_base" {
-  name   = "ubuntu-noble-server-cloudimg-amd64.qcow2"
+  name   = "devops-sandbox-base.qcow2"
   pool   = "default"
-  source = var.ubuntu_image_url
+  source = pathexpand(var.image_path)
   format = "qcow2"
 
   depends_on = [terraform_data.ssh_pubkey_check]
 }
 
 resource "libvirt_volume" "root" {
-  name           = "${var.vm_name}-root.qcow2"
+  name           = "devops-sandbox-root.qcow2"
   pool           = "default"
   base_volume_id = libvirt_volume.ubuntu_base.id
   size           = var.vm_disk_gb * 1024 * 1024 * 1024
@@ -16,7 +16,7 @@ resource "libvirt_volume" "root" {
 }
 
 resource "libvirt_domain" "vm" {
-  name   = var.vm_name
+  name   = "devops-sandbox"
   memory = var.vm_memory_mib
   vcpu   = var.vm_vcpus
 
@@ -46,6 +46,10 @@ resource "libvirt_domain" "vm" {
     target_type = "serial"
     target_port = "0"
   }
+
+  xml {
+    xslt = file("${path.module}/seclabel-none.xsl")
+  }
 }
 
 resource "null_resource" "cloud_init_ready" {
@@ -58,7 +62,7 @@ resource "null_resource" "cloud_init_ready" {
   connection {
     type        = "ssh"
     host        = libvirt_domain.vm.network_interface[0].addresses[0]
-    user        = var.username
+    user        = "dev"
     private_key = local.ssh_private_key
     agent       = true
     timeout     = "15m"

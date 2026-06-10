@@ -1,0 +1,64 @@
+name: Cleanup image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Simulate post-install image state
+        run: |
+          set -euo pipefail
+
+          mkdir -p /etc/ssh /var/lib/cloud/data /var/cache/apt/archives /tmp /var/tmp /var/log
+          printf 'machine-id-before-cleanup\n' >/etc/machine-id
+          printf 'fake-host-key\n' >/etc/ssh/ssh_host_ed25519_key
+          printf 'builder-instance\n' >/var/lib/cloud/data/instance-id
+          printf 'cached-package\n' >/var/cache/apt/archives/fake-package.deb
+          printf 'tmp\n' >/tmp/cleanup-sentinel
+          printf 'var-tmp\n' >/var/tmp/cleanup-sentinel
+          printf 'log\n' >/var/log/cleanup-sentinel.log
+          printf 'cloud-init log\n' >/var/log/cloud-init.log
+
+          useradd --create-home --shell /bin/bash builder
+          printf 'builder home\n' >/home/builder/sentinel
+
+      - name: Run cleanup
+        env:
+          SOURCE_CLOUD_IMAGE_URL: https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+          SOURCE_CLOUD_IMAGE_SHA256: test-sha256
+          BUILD_TIMESTAMP_RFC3339: "2026-06-09T00:00:00Z"
+          GIT_SHORT_SHA: testsha
+          TOOLS: docker,kind,helm
+          TOOL_VERSIONS: docker=29.5.3,kind=v0.29.0
+        run: packer/cleanup.sh
+
+      - name: Assert sealed state
+        run: |
+          set -euo pipefail
+
+          test -f /etc/vm-build-info.txt
+          for key in source_cloud_image_url source_cloud_image_sha256 build_timestamp git_sha tools tool_versions; do
+            grep -Eq "^${key}=" /etc/vm-build-info.txt
+          done
+
+          test ! -e /etc/ssh/ssh_host_ed25519_key
+          ! getent passwd builder
+          test ! -d /home/builder
+          test ! -s /etc/machine-id
+          test -L /var/lib/dbus/machine-id
+          test "$(readlink /var/lib/dbus/machine-id)" = "/etc/machine-id"
+          test -z "$(find /var/lib/cloud -mindepth 1 -print -quit)"
+          test -z "$(find /tmp -mindepth 1 -print -quit)"
+          test -z "$(find /var/tmp -mindepth 1 -print -quit)"
+          test -z "$(find /var/cache/apt/archives -type f -print -quit)"

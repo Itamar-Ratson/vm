@@ -7,12 +7,6 @@ resource "terraform_data" "ssh_pubkey_check" {
   }
 }
 
-locals {
-  install_scripts = {
-    for tool in var.tools : tool => file("${path.module}/scripts/install-${tool}.sh")
-  }
-}
-
 data "cloudinit_config" "user_data" {
   gzip          = false
   base64_encode = false
@@ -20,19 +14,19 @@ data "cloudinit_config" "user_data" {
   part {
     content_type = "text/cloud-config"
     content = templatefile("${path.module}/cloud-init/user-data.yaml.tftpl", {
-      username        = var.username
-      ssh_public_key  = local.ssh_public_key
-      tools           = var.tools
-      tool_versions   = var.tool_versions
-      install_scripts = local.install_scripts
+      ssh_public_key = local.ssh_public_key
     })
   }
 }
 
 resource "libvirt_cloudinit_disk" "user_data" {
-  name      = "${var.vm_name}-cloudinit.iso"
+  name      = "devops-sandbox-cloudinit.iso"
   pool      = "default"
   user_data = data.cloudinit_config.user_data.rendered
+  meta_data = yamlencode({
+    instance-id    = "devops-sandbox"
+    local-hostname = "devops-sandbox"
+  })
 
   depends_on = [terraform_data.ssh_pubkey_check]
 }

@@ -1,0 +1,34 @@
+name: Packer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@v3
+
+      - name: Render validation stubs
+        run: |
+          set -euo pipefail
+          mkdir -p packer/.build/seed
+          cp packer/seed/meta-data packer/.build/seed/meta-data
+          sed 's|@SSH_PUBKEY@|ssh-ed25519 AAAA-validation-stub|' \
+            packer/seed/user-data.tpl > packer/.build/seed/user-data
+          ssh-keygen -q -t ed25519 -N "" -f packer/.build/builder_id
+
+      - name: Validate Packer template
+        run: |
+          packer init packer/devops-sandbox.pkr.hcl
+          packer validate \
+            -var 'ssh_private_key_file=packer/.build/builder_id' \
+            packer/devops-sandbox.pkr.hcl

@@ -22,6 +22,7 @@
 !.dockerignore
 !package.json
 !package-lock.json
+!packer/seed/meta-data
 
 # Terraform state and cache (override folder allowlist)
 .terraform/**
@@ -35,14 +36,16 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/.terraform.tfstate.lock.info
 !terraform/terraform.tfvars.example
+!packer/seed/meta-data
 !terraform.tfvars.example
+!packer/seed/meta-data
 
 # Explicitly Disallow
 node_modules
 .sandcastle
 CLAUDE.md
-CONTEXT.md
 docs/agents
+!CONTEXT.md
 
 # Never track files prefixed with `secret-` (they typically hold real
 # credentials produced by `kubectl create secret ... -o yaml`).
