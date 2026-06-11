@@ -16,7 +16,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 for name in "${required_env[@]}"; do
-  if [ -z "${!name:-}" ]; then
+  if [ -z "${!name+x}" ]; then
     printf 'required environment variable %s is not set\n' "$name" >&2
     exit 1
   fi
@@ -48,8 +48,9 @@ wipe_dir /var/tmp
 wipe_dir /var/log
 
 if getent passwd builder >/dev/null; then
-  userdel -r builder
+  userdel -f -r builder 2>/dev/null || true
 fi
+rm -rf /home/builder /var/mail/builder
 
 wipe_dir /var/lib/cloud
 rm -f /var/log/cloud-init /var/log/cloud-init.log /var/log/cloud-init-output.log
@@ -61,6 +62,12 @@ ln -s /etc/machine-id /var/lib/dbus/machine-id
 
 rm -f /etc/ssh/ssh_host_*
 
+sync
 if ! fstrim -av; then
   printf 'fstrim is unavailable in this environment; continuing\n' >&2
+fi
+sync
+
+if command -v systemd-run >/dev/null && [ -d /run/systemd/system ]; then
+  systemd-run --on-active=5s /sbin/shutdown -P now >/dev/null
 fi
