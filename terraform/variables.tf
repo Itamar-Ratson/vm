@@ -23,9 +23,9 @@ variable "ssh_pubkey_path" {
 }
 
 variable "image_path" {
-  description = "Path to the pre-baked qcow2 image produced by Packer."
+  description = "Path to the pre-baked qcow2 image produced by Packer. Relative paths are resolved against this module directory."
   type        = string
-  default     = "${path.module}/../packer/output/devops-sandbox-base.qcow2"
+  default     = "../packer/output/devops-sandbox-base.qcow2"
 }
 
 locals {
@@ -46,7 +46,7 @@ locals {
 
   ssh_pubkey_exists      = local.effective_ssh_pubkey_path != null && fileexists(local.effective_ssh_pubkey_path)
   ssh_public_key         = local.ssh_pubkey_exists ? trimspace(file(local.effective_ssh_pubkey_path)) : ""
-  ssh_private_key_path   = local.ssh_pubkey_exists ? regexreplace(local.effective_ssh_pubkey_path, "\\.pub$", "") : null
+  ssh_private_key_path   = local.ssh_pubkey_exists ? replace(local.effective_ssh_pubkey_path, "/\\.pub$/", "") : null
   ssh_private_key_exists = local.ssh_private_key_path != null && fileexists(local.ssh_private_key_path)
   ssh_private_key        = local.ssh_private_key_exists ? file(local.ssh_private_key_path) : null
 }
