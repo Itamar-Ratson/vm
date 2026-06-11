@@ -15,6 +15,7 @@
 !*.tftpl
 !*.txt
 !*.sh
+!*.xsl
 
 # Allow specific files
 !.gitignore
