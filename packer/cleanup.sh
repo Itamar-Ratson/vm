@@ -62,9 +62,11 @@ ln -s /etc/machine-id /var/lib/dbus/machine-id
 
 rm -f /etc/ssh/ssh_host_*
 
+sync
 if ! fstrim -av; then
   printf 'fstrim is unavailable in this environment; continuing\n' >&2
 fi
+sync
 
 if command -v systemd-run >/dev/null && [ -d /run/systemd/system ]; then
   systemd-run --on-active=5s /sbin/shutdown -P now >/dev/null
